@@ -1,0 +1,10 @@
+# Only the encrypted distribution and public instructions belong in this repo.
+*.zip
+*.zip.tmp
+analise_agencia_toolkit/
+work/
+.env
+*.local.json
+*.sqlite
+*.sqlite-*
+__pycache__/
