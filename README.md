@@ -11,6 +11,14 @@ archive contains executable source, tests, SQL templates and configuration
 examples. It contains no real credentials, corporate extracts or prior results.
 Keep decrypted files and all generated results in approved local storage.
 
+## Recovery from the error2 JSON failure
+
+A single malformed MTA payload no longer aborts extraction. The updated toolkit
+records unusable rows locally, continues valid rows, and discloses the analysis
+coverage gap in both reports. Existing checkpoints remain resumable without
+repeating completed partitions. Follow [ERROR2.md](ERROR2.md) to update and
+resume your interrupted run, preserving `.env` and `output/`.
+
 ## Detailed dossier and executive summary
 
 The reference-based outputs are now **`detailed.tex` / `detailed.pdf`** and

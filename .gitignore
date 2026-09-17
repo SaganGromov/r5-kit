@@ -11,3 +11,6 @@ __pycache__/
 # User-supplied report references contain corporate findings; keep them local.
 /detailed.tex
 /relatorio.pdf
+# User-supplied error2 screenshot has no filename extension.
+/set152026
+/error2.jpeg
