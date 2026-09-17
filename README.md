@@ -1,7 +1,7 @@
 # R5 Kit
 
 An age-encrypted ZIP containing a portable R5 analysis toolkit, including the
-DB2 authentication fix. This guide covers download, decryption, installation,
+DB2 authentication and ASUTIME fixes (17 September 2026). This guide covers download, decryption, installation,
 configuration, the 15-minute/four-hour comparison, pause/resume, reports and
 diagnostics.
 
@@ -10,6 +10,48 @@ The decryption passphrase is supplied separately; it is not stored here. The
 archive contains executable source, tests, SQL templates and configuration
 examples. It contains no real credentials, corporate extracts or prior results.
 Keep decrypted files and all generated results in approved local storage.
+
+## Quick recovery: 17 September ASUTIME error
+
+The `global MTA ID extent` failure came from a combined MIN/MAX query introduced
+by the toolkit. This release restores separate endpoint queries and the
+historical date-to-ID estimation approach. It also avoids scanning the entire
+retained ID range by default and removes the redundant final extent query.
+
+For the layout shown in your screenshot, open the **r5-kit repository root**
+(the parent of your existing `analise_agencia_toolkit` directory) and run:
+
+```sh
+git pull --ff-only
+sha256sum -c SHA256SUMS
+umask 077
+age --decrypt --output r5-update.zip r5-toolkit.zip.age
+python3 -m zipfile -e r5-update.zip .
+cd analise_agencia_toolkit
+"$R5_PY" run_analysis.py compare \
+  --start 2026-09-07 --end 2026-09-14 --windows 15 240 \
+  --env-file .env --out output/contrast_sep07_14 --resume
+```
+
+Enter the same separately supplied passphrase. Stop if download verification
+or decryption fails; do not extract a partial ZIP. The bundle contains no
+`.env`, credentials, `source.sqlite` or generated results, so extraction replaces
+code/docs while leaving your configured access and previous run intact.
+For the layout with `work/analise_agencia_toolkit`, extract into `work` instead
+of `.` and then `cd work/analise_agencia_toolkit`. If `R5_PY` is unset in a new
+terminal, set it to the existing corporate virtual-environment Python as in
+section 5. An optional local check is `"$R5_PY" -m unittest discover -s tests -q`.
+
+A checkpoint stopped before MTA planning is backed up and upgraded automatically;
+completed VPN days are reused. Keep the same `--out`, dates and filters. A cache
+with MTA work already started is deliberately not migrated: preserve it and
+use a new `--out` if the tool reports that mismatch.
+
+**The estimate is a performance tradeoff, not proof of complete coverage.**
+`mta_plan.json`, summary JSON and both TeX reports record its limits. Query
+performance still needs confirmation in your corporate DB2. If another query
+fails, return its `queries.jsonl` entry, the last lines of `run.log`, and
+`mta_plan.json` if present, after reviewing them for sensitive identifiers.
 
 ## 1. Download
 
@@ -109,7 +151,9 @@ analise_agencia_toolkit/
     scripts/reports.py
     sql/vpn.sql
     sql/mta.sql
-    sql/extent.sql
+    sql/id_min.sql
+    sql/id_max.sql
+    sql/id_sample.sql
     tests/test_toolkit.py
     output/.gitkeep
 ```
@@ -160,7 +204,7 @@ test -x "$R5_PY"
 "$R5_PY" -m unittest discover -s tests -v
 ```
 
-The test suite should report **25 tests, OK**. It uses synthetic fixtures and
+The test suite should report **36 tests, OK**. It uses synthetic fixtures and
 does not connect to DB2 or Curio. Plain `doctor` checks local dependencies and
 configuration without connecting. A successful test suite or `ibm_db` import
 does **not** establish that authentication or a SELECT query works.
@@ -274,16 +318,23 @@ a completed extraction. It prevents the need to delete an existing checkpoint.
 The command automatically:
 
 1. Reads eligible VPN events and stores them in a local SQLite cache.
-2. Obtains the available MTA ID extent, scans bounded ID partitions, and
-   subdivides partitions on resource limits or a result-cap sentinel.
+2. Reads the minimum and maximum MTA IDs in separate queries, samples three
+   timestamps, estimates the requested ID range, and scans bounded partitions
+   of that range. It subdivides on resource limits or a result-cap sentinel.
 3. Parses source JSON locally and commits completed partitions durably.
 4. Reclassifies each window independently using the same cached source rows.
 5. Writes full evidence, daily counts, comparison statistics, technical TeX and
    executive TeX into a new `report_TIMESTAMP` directory.
 
-You do not copy results from one DB2 query into another manually. The complete
-captured ID extent is scanned rather than inferring IDs from timestamps.
-This can be expensive; no two-hour completion guarantee is made.
+You do not copy query results manually. The default `--mta-scope estimated`
+follows the historical three-sample ID estimate with a 20% plus 1,000-ID
+margin. `mta_plan.json` records the selected range and samples. Late or
+out-of-order events may lie outside it: complete coverage is not guaranteed.
+This limitation also appears in the JSON summary and both TeX reports.
+Invalid samples or dates outside the estimate stop with an error; no full
+scan is started automatically. `--mta-scope full` explicitly scans every
+retained ID and can cost much more. Use a new output directory to switch scope.
+Neither mode has a two-hour completion guarantee.
 
 The source data needed for a past period may have expired. Missing retained
 data cannot be reconstructed by rerunning a query. Treat coverage warnings as
@@ -394,6 +445,7 @@ keys are:
 | `physical_ip_cidrs` | Networks eligible for classification |
 | `users` | Restricted user list; empty means all eligible users |
 | `excluded_users` | Users excluded from the analysis |
+| `mta_scope` | `estimated` (default) or `full`; CLI `--mta-scope` overrides this setting |
 | `id_span` | Initial ID partition width, default 50,000 |
 | `row_limit` | Accepted rows per query, default 10,000; an extra row detects truncation |
 
@@ -493,7 +545,7 @@ or expiry during a long run can affect completeness.
 | Connection still fails | Return `doctor.json` and the relevant redacted `connection.jsonl` entry. |
 | Object/column error | Return the SQLCODE/SQLSTATE and failed `queries.jsonl` entry. Do not guess replacement columns. |
 | Malformed JSON or unexpected payload type | Inspect the indicated row locally and describe the structure without sharing raw corporate content by default. The current partition is rolled back. |
-| Resource-limit failures | Check the logged partition and split/retry messages. Return the failing interval and timings if the operation cannot proceed. |
+| Resource-limit failures | This release removes the combined MIN/MAX discovery query. Return the failing query label, SQLSTATE and timings. Extraction partitions split; failed endpoint/sample probes stop without an automatic full scan. |
 | Existing cache error | Use identical settings and `--resume`, or a separate output directory. Do not delete the checkpoint as a routine recovery step. |
 | Curio 404 despite healthy service | Confirm that both organizational operations were loaded when the existing sidecar started. |
 | Missing UOR | Keep UNKNOWN; inspect lookup status. Missing dependency name and missing UOR are distinct conditions. |
@@ -528,19 +580,24 @@ examples. Run tests and `doctor --connect`, then use the same analysis command
 with `--resume`.
 
 Only caches with compatible extraction parameters/signatures can be resumed.
-The authentication-only correction in this distribution keeps the existing
-query/cache signature compatible. For later changes, follow the specific
-release instructions before reusing an old cache.
+The 17 September correction automatically upgrades the exact original
+checkpoint only if MTA planning/data never started and the other parameters
+match. It first saves `source.sqlite.before-mta-fix.sqlite`, then preserves
+completed VPN days. If MTA extraction had already started, preserve that
+cache and choose a new output directory. Complete old caches remain usable
+for offline analysis with `--cache`.
 
 ## Validation and limits
 
 The bundle is checked locally by encrypting/decrypting it, verifying ZIP/file
-integrity, and running its 25 synthetic regression tests from the extracted
+integrity, and running its 36 synthetic regression tests from the extracted
 copy. Earlier offline tests also covered relocation, report verification,
 historical pure-correlation parity and TeX compilation. The corporate
 diagnostic confirmed Python 3.13.1, driver import and local test execution,
-but authentication failed in the previous connection implementation.
+but authentication failed in the initial implementation. A later screenshot
+reached query execution and failed at the combined MTA MIN/MAX statement with
+SQL0905N / ASUTIME. This release addresses that specific regression.
 
-Successful live authentication with the corrected code, real query compatibility,
+Live performance of the revised SELECTs, real query compatibility,
 source retention, runtime and organizational service availability still need
 corporate validation. No new corporate result is included or claimed.
