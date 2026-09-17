@@ -11,6 +11,29 @@ archive contains executable source, tests, SQL templates and configuration
 examples. It contains no real credentials, corporate extracts or prior results.
 Keep decrypted files and all generated results in approved local storage.
 
+## Future runs: exhaustive accounting and performance
+
+**Leave the current running process alone; update its files after it finishes.**
+This release keeps the current SQL/config signatures and default estimated
+mode compatible. For a future exhaustive run, explicitly pass `--mta-scope full`
+and choose a new output directory. Reuse its complete cache for subsequent
+window comparisons without querying DB2 again.
+
+New work includes learned query sizes after resource/cap failures, skipping
+only ID gaps confirmed by an unfiltered DB2 lookup, faster local correlation,
+and an offline interval audit:
+
+```sh
+"$R5_PY" run_analysis.py coverage --cache output/contrast_sep07_14/source.sqlite
+```
+
+`coverage_audit.json` distinguishes completed intervals from a verified database
+snapshot. **Only live tables are available, so historical completeness and a
+consistent DB2 snapshot cannot be guaranteed.** The audit checks interval
+accounting and VPN-day completion; it never turns those into a snapshot claim.
+Read [COVERAGE.md](COVERAGE.md) for the algorithm, conditional proof, synthetic
+performance measurements, limitations and exact commands for full runs.
+
 ## Quick recovery: 17 September ASUTIME error
 
 The `global MTA ID extent` failure came from a combined MIN/MAX query introduced
@@ -139,6 +162,7 @@ The extracted layout is:
 analise_agencia_toolkit/
     README.md
     BUNDLE.md
+    COVERAGE.md
     MANIFEST.json
     THIRD_PARTY_NOTICE.md
     DIAGNOSIS.md
@@ -155,6 +179,7 @@ analise_agencia_toolkit/
     sql/id_max.sql
     sql/id_sample.sql
     tests/test_toolkit.py
+    tests/test_exhaustive.py
     output/.gitkeep
 ```
 
@@ -204,7 +229,7 @@ test -x "$R5_PY"
 "$R5_PY" -m unittest discover -s tests -v
 ```
 
-The test suite should report **36 tests, OK**. It uses synthetic fixtures and
+The test suite should report **47 tests, OK**. It uses synthetic fixtures and
 does not connect to DB2 or Curio. Plain `doctor` checks local dependencies and
 configuration without connecting. A successful test suite or `ibm_db` import
 does **not** establish that authentication or a SELECT query works.
@@ -507,6 +532,7 @@ timestamped directory so previous deliverables are preserved.
 | `queries.jsonl` | Actual SELECTs, ordered bindings, row counts, timings and errors |
 | `r5_15min.jsonl/.csv`, `r5_240min.jsonl/.csv` | Complete three-event findings for each window |
 | `daily.csv` | Every calendar day, including zero-alert days |
+| `coverage_audit.json` | Interval/VPN-day accounting; explicit unverified snapshot and historical-completeness flags |
 | `summary.json` | Means, counts, overlap/window-only findings, source coverage and provenance |
 | `backtesting_dossier.tex` | Technical report |
 | `relatorio_executivo_r5.tex` | Business report |
@@ -590,7 +616,7 @@ for offline analysis with `--cache`.
 ## Validation and limits
 
 The bundle is checked locally by encrypting/decrypting it, verifying ZIP/file
-integrity, and running its 36 synthetic regression tests from the extracted
+integrity, and running its 47 synthetic regression tests from the extracted
 copy. Earlier offline tests also covered relocation, report verification,
 historical pure-correlation parity and TeX compilation. The corporate
 diagnostic confirmed Python 3.13.1, driver import and local test execution,
