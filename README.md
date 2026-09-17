@@ -11,6 +11,26 @@ archive contains executable source, tests, SQL templates and configuration
 examples. It contains no real credentials, corporate extracts or prior results.
 Keep decrypted files and all generated results in approved local storage.
 
+## Detailed dossier and executive summary
+
+The reference-based outputs are now **`detailed.tex` / `detailed.pdf`** and
+**`relatorio.tex` / `relatorio.pdf`**. PDFs are generated automatically when
+`pdflatex` exists; `--compile-pdf` requires them and `--no-pdf` skips compilation.
+Organizational results are included after `--with-agencies` finishes, or from
+an existing `--profiles` file. Full findings remain in CSV/JSONL; the dossier
+states its evidence-display limit.
+
+After your current run finishes and you update the toolkit, rebuild its
+reports **without rerunning DB2**:
+
+```sh
+R5_REPORT=output/contrast_sep07_14/report_REPLACE_WITH_ACTUAL_TIMESTAMP
+"$R5_PY" run_analysis.py report --directory "$R5_REPORT" --compile-pdf
+```
+
+Use the actual report directory printed by your execution. Read [REPORTS.md](REPORTS.md)
+for both layouts, offline UOR enrichment, dependencies and complete commands.
+
 ## Future runs: exhaustive accounting and performance
 
 **Leave the current running process alone; update its files after it finishes.**
@@ -163,6 +183,7 @@ analise_agencia_toolkit/
     README.md
     BUNDLE.md
     COVERAGE.md
+    REPORTS.md
     MANIFEST.json
     THIRD_PARTY_NOTICE.md
     DIAGNOSIS.md
@@ -173,6 +194,7 @@ analise_agencia_toolkit/
     scripts/source.py
     scripts/r5.py
     scripts/reports.py
+    scripts/report_layout.py
     sql/vpn.sql
     sql/mta.sql
     sql/id_min.sql
@@ -180,6 +202,7 @@ analise_agencia_toolkit/
     sql/id_sample.sql
     tests/test_toolkit.py
     tests/test_exhaustive.py
+    tests/test_reports.py
     output/.gitkeep
 ```
 
@@ -229,7 +252,7 @@ test -x "$R5_PY"
 "$R5_PY" -m unittest discover -s tests -v
 ```
 
-The test suite should report **47 tests, OK**. It uses synthetic fixtures and
+The test suite should report **54 tests, OK**. It uses synthetic fixtures and
 does not connect to DB2 or Curio. Plain `doctor` checks local dependencies and
 configuration without connecting. A successful test suite or `ibm_db` import
 does **not** establish that authentication or a SELECT query works.
@@ -365,9 +388,9 @@ The source data needed for a past period may have expired. Missing retained
 data cannot be reconstructed by rerunning a query. Treat coverage warnings as
 limitations, not as evidence that there were no historical alerts.
 
-### Optional PDF output
+### PDF output
 
-If `doctor` reports `pdflatex` available, add `--compile-pdf`:
+PDFs are automatic when `pdflatex` is available. Add `--compile-pdf` to require them:
 
 ```sh
 "$R5_PY" run_analysis.py compare \
@@ -375,9 +398,9 @@ If `doctor` reports `pdflatex` available, add `--compile-pdf`:
   --env-file .env --out output/contrast_sep07_14 --resume --compile-pdf
 ```
 
-The templates require standard `article`, `inputenc`, `fontenc`, `geometry`
-and `longtable`. No shell escape is enabled. Without `--compile-pdf`, the
-deliverable `.tex` files are still generated and can be compiled later.
+The templates require `article`, `inputenc`, `fontenc`, `geometry`, `longtable`,
+`array`, `booktabs`, `xcolor`, `fancyhdr` and `hyperref`; `lmodern` is optional.
+Shell escape is disabled. Use `--no-pdf` for TeX only. See REPORTS.md.
 
 ## 10. Pause and resume safely
 
@@ -424,7 +447,7 @@ runs at supported windows:
   --delta 60 --out output/offline_60min
 ```
 
-Omit `--compile-pdf` when TeX is unavailable. With `--cache`, dates and filters
+Use `--no-pdf` when TeX is unavailable. With `--cache`, dates and filters
 come from the saved signature. Do not add `--start`, `--end`, `--config`,
 `--resume` or `--max-seconds`. A requested window cannot exceed the maximum
 window supported by the extraction. A cache collected for 240 minutes supports
@@ -534,8 +557,8 @@ timestamped directory so previous deliverables are preserved.
 | `daily.csv` | Every calendar day, including zero-alert days |
 | `coverage_audit.json` | Interval/VPN-day accounting; explicit unverified snapshot and historical-completeness flags |
 | `summary.json` | Means, counts, overlap/window-only findings, source coverage and provenance |
-| `backtesting_dossier.tex` | Technical report |
-| `relatorio_executivo_r5.tex` | Business report |
+| `detailed.tex` / `detailed.pdf` | Detailed technical dossier; old `backtesting_dossier.*` names retained |
+| `relatorio.tex` / `relatorio.pdf` | Executive report; old `relatorio_executivo_r5.*` names retained |
 | `manifest.json` | Report file sizes and SHA-256 checksums |
 | `profiles.json` | Current organizational mappings and lookup status |
 | `funcionarios_r5_curio.csv` | All counted employees with available UOR data |
@@ -575,7 +598,7 @@ or expiry during a long run can affect completeness.
 | Existing cache error | Use identical settings and `--resume`, or a separate output directory. Do not delete the checkpoint as a routine recovery step. |
 | Curio 404 despite healthy service | Confirm that both organizational operations were loaded when the existing sidecar started. |
 | Missing UOR | Keep UNKNOWN; inspect lookup status. Missing dependency name and missing UOR are distinct conditions. |
-| PDF build fails | Inspect the generated `.build.log`; TeX and analytical outputs remain available. Run offline without `--compile-pdf` if only `.tex` is required. |
+| PDF build fails | Inspect the generated `.build.log`; TeX and analytical outputs remain available. Run offline with `--no-pdf` if only `.tex` is required. |
 
 Exit codes: `0` completed; `1` configuration/execution error; `2` invalid
 command-line usage; `130` interruption/pause. Add `--verbose` for more toolkit
@@ -616,7 +639,7 @@ for offline analysis with `--cache`.
 ## Validation and limits
 
 The bundle is checked locally by encrypting/decrypting it, verifying ZIP/file
-integrity, and running its 47 synthetic regression tests from the extracted
+integrity, and running its 54 synthetic regression tests from the extracted
 copy. Earlier offline tests also covered relocation, report verification,
 historical pure-correlation parity and TeX compilation. The corporate
 diagnostic confirmed Python 3.13.1, driver import and local test execution,

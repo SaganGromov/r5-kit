@@ -8,3 +8,6 @@ work/
 *.sqlite
 *.sqlite-*
 __pycache__/
+# User-supplied report references contain corporate findings; keep them local.
+/detailed.tex
+/relatorio.pdf
