@@ -11,6 +11,15 @@ archive contains executable source, tests, SQL templates and configuration
 examples. It contains no real credentials, corporate extracts or prior results.
 Keep decrypted files and all generated results in approved local storage.
 
+## Required enrichment and rule audit
+
+Organizational enrichment is now required for `compare`, `r5` and `report`.
+They use Curio by default; provide `--profiles` for fully offline mappings.
+`--with-agencies` is no longer necessary. Final reports include daily distinct
+employees, same-day/cross-day pair counts and candidate-IP checks against
+saved VPN authentications. Read [RULE_AUDIT.md](RULE_AUDIT.md) for the rule's
+limits and how to audit/enrich an existing run without querying DB2 again.
+
 ## Recovery from the error2 JSON failure
 
 A single malformed MTA payload no longer aborts extraction. The updated toolkit
@@ -24,7 +33,7 @@ resume your interrupted run, preserving `.env` and `output/`.
 The reference-based outputs are now **`detailed.tex` / `detailed.pdf`** and
 **`relatorio.tex` / `relatorio.pdf`**. PDFs are generated automatically when
 `pdflatex` exists; `--compile-pdf` requires them and `--no-pdf` skips compilation.
-Organizational results are included after `--with-agencies` finishes, or from
+Organizational results are required before finalization, using Curio or
 an existing `--profiles` file. Full findings remain in CSV/JSONL; the dossier
 states its evidence-display limit.
 
@@ -260,7 +269,7 @@ test -x "$R5_PY"
 "$R5_PY" -m unittest discover -s tests -v
 ```
 
-The test suite should report **54 tests, OK**. It uses synthetic fixtures and
+The test suite should report **65 tests, OK**. It uses synthetic fixtures and
 does not connect to DB2 or Curio. Plain `doctor` checks local dependencies and
 configuration without connecting. A successful test suite or `ibm_db` import
 does **not** establish that authentication or a SELECT query works.
@@ -440,7 +449,7 @@ Extraction is checkpointed. Offline classification and report generation can
 be restarted without additional DB2 access. A report directory without its
 final `manifest.json` must not be treated as complete.
 
-## 11. Reuse the captured sources offline
+## 11. Reuse captured sources without DB2
 
 Once extraction completes, the DB2 connection is unnecessary for new report
 runs at supported windows:
@@ -455,6 +464,8 @@ runs at supported windows:
   --delta 60 --out output/offline_60min
 ```
 
+Enrichment still uses Curio: add `--env-file .env` for its settings or
+`--profiles /path/to/profiles.json` for fully offline mappings.
 Use `--no-pdf` when TeX is unavailable. With `--cache`, dates and filters
 come from the saved signature. Do not add `--start`, `--end`, `--config`,
 `--resume` or `--max-seconds`. A requested window cannot exceed the maximum
@@ -511,15 +522,17 @@ examples, not the counts. No maximum-record option silently truncates findings.
 
 ### Enrich all users and aggregate by UOR
 
-This optional step requires the already configured corporate Curio sidecar.
+Enrichment is required and uses the already configured corporate Curio sidecar
+unless you supply `--profiles` for saved mappings.
 Set `CURIO_BASE_URL` in `.env` to its actual URL. Local HTTP and trusted HTTPS
 are supported; HTTPS certificate verification remains enabled. Configure
 `CURIO_CA_FILE` only if your existing setup needs a trusted CA file.
 The toolkit does not create containers, load sidecar credentials or modify
 operation registration.
 
-Add `--with-agencies` to `compare` or `r5` for the complete organizational
-pipeline. It collects the union of users from both comparison windows:
+`compare` and `r5` always run the organizational pipeline. The legacy
+`--with-agencies` flag is accepted but unnecessary. The pipeline collects
+the union of users from both comparison windows:
 
 ```sh
 "$R5_PY" run_analysis.py compare \

@@ -70,10 +70,11 @@ R5_REPORT=output/contrast_sep07_14/report_REPLACE_WITH_ACTUAL_TIMESTAMP
 ```
 
 This verifies the existing report manifest and regenerates presentation using
-its saved findings and summary. It does not query DB2 or Curio, and rewrites
-the generated report files in that directory while preserving the findings.
-A saved `enrichment/profiles.json` in that directory is reused automatically.
-Otherwise supply an existing profile file to include the organizational tables:
+its saved findings and summary. It does not query DB2. Required organizational enrichment uses Curio,
+reusing completed lookups in `enrichment/profiles.json` and retrying missing
+lookups. Add `--env-file .env` for sidecar settings. Old TeX/PDF reports are
+preserved under `previous_reports/`; findings remain unchanged.
+Supply `--profiles` to apply saved mappings without any Curio requests:
 
 ```sh
 "$R5_PY" run_analysis.py report --directory "$R5_REPORT" \
@@ -81,7 +82,8 @@ Otherwise supply an existing profile file to include the organizational tables:
 ```
 
 If only a complete source cache exists, regenerate the analysis and reports
-entirely offline in a new output directory:
+without DB2 in a new output directory (Curio remains required unless
+`--profiles` supplies saved mappings):
 
 ```sh
 "$R5_PY" run_analysis.py compare \
@@ -90,8 +92,8 @@ entirely offline in a new output directory:
 ```
 
 Add `--profiles /path/to/existing/profiles.json` for saved UOR assignments.
-With no organizational data, both reports explicitly state that enrichment
-was not performed. They do not invent dependency names or a UOR ranking.
+Enrichment errors stop finalization with a nonzero exit code; partial findings
+remain available for retry through `report`. Unknown assignments remain explicit.
 
 ## Live organizational enrichment
 
@@ -104,8 +106,8 @@ To query the existing Curio sidecar after a cached comparison:
   --out output/reports_with_uor
 ```
 
-This makes Curio requests, but no DB2 requests. `--with-agencies` and
-`--profiles` are alternatives. On a new online extraction, the same flags
+This makes Curio requests, but no DB2 requests. `--with-agencies` is now
+unnecessary; enrichment is mandatory. `--profiles` uses saved mappings instead. On a new online extraction, the same flags
 apply to the normal dated `compare`/`r5` command. The final dossier and
 executive PDF are built **after** organizational enrichment, so their UOR
 figures match the exported aggregations. Current assignment is identified as
@@ -120,3 +122,9 @@ before PDF compilation, stale-PDF removal, missing-compiler behavior, TeX
 escaping of hostile strings, PDF text content and manifest verification.
 The local TeX integration check compiles both PDFs with existing tools; it
 skips only when TeX or Poppler is unavailable. No DB2 query is needed for it.
+
+## Rule and counting audit
+
+Both reports now include daily distinct employees, same-day versus cross-day
+pairs and prior VPN authentication evidence for candidate IPs. See
+[RULE_AUDIT.md](RULE_AUDIT.md) for definitions, outputs and recovery instructions.
