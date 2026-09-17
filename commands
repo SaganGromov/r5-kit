@@ -1,0 +1,11 @@
+git pull --ff-only &&
+  sha256sum -c SHA256SUMS &&
+  age --decrypt --output r5-update.zip r5-toolkit.zip.age &&
+  python3 -m zipfile -e r5-update.zip .
+
+
+cd analise_agencia_toolkit
+
+  "$R5_PY" run_analysis.py compare \
+    --start 2026-09-07 --end 2026-09-14 --windows 15 240 \
+    --env-file .env --out output/contrast_sep07_14 --resume
